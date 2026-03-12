@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 
-export const DEFAULT_LEFT = ['roast', 'pomodoro', 'quickCapture', 'imageCapture', 'attentionTasks', 'focusBoard', 'quickStats', 'systemMonitor']
+export const DEFAULT_LEFT = ['roast', 'pomodoro', 'quickCapture', 'imageCapture', 'attentionTasks', 'focusBoard', 'quickStats', 'contributions', 'systemMonitor']
 export const DEFAULT_RIGHT = ['yearProgress', 'weeklyChart', 'categoryBreakdown', 'focusHeatmap', 'dashboardCalendar', 'goals', 'library']
 export const DEFAULT_ORDER = [...DEFAULT_LEFT, ...DEFAULT_RIGHT]
 

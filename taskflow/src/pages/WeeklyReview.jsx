@@ -1,13 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Sparkles, Loader2, CheckCircle2, XCircle, Calendar, Target, RefreshCw } from 'lucide-react'
-import { startOfWeek, endOfWeek, format, subWeeks, parseISO, isWithinInterval } from 'date-fns'
+import { ArrowLeft, Sparkles, Loader2, CheckCircle2, XCircle, Calendar, Target, RefreshCw, ClipboardList, BarChart2, Check } from 'lucide-react'
+import { startOfWeek, endOfWeek, format, subWeeks } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import { useTaskStore } from '../store/taskStore'
 import { useGoalStore } from '../store/goalStore'
-import { db } from '../services/db'
+import { db, CATEGORIES } from '../services/db'
 import { generateWeeklySummary } from '../services/ai'
-import { CATEGORIES } from '../services/db'
 
 function getWeekRange(offset = 0) {
   const base = subWeeks(new Date(), offset)
@@ -19,7 +18,11 @@ function getWeekRange(offset = 0) {
 export default function WeeklyReview() {
   const navigate = useNavigate()
   const tasks = useTaskStore(s => s.tasks)
+  const markDone = useTaskStore(s => s.markDone)
+  const updateTask = useTaskStore(s => s.updateTask)
   const goals = useGoalStore(s => s.goals)
+  const updateGoal = useGoalStore(s => s.updateGoal)
+  const [view, setView] = useState('plan') // 'plan' | 'report'
   const [weekOffset, setWeekOffset] = useState(0)
   const [aiSummary, setAiSummary] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
@@ -115,8 +118,11 @@ export default function WeeklyReview() {
 
   const completionRate = weekTasks.length > 0 ? Math.round(doneTasks.length / weekTasks.length * 100) : 0
 
+  const pendingWeekTasks = weekTasks.filter(t => t.status !== 'done')
+  const activeGoals = goals.filter(g => g.status !== 'done')
+
   return (
-    <div className="px-4 py-5 max-w-2xl mx-auto space-y-5">
+    <div className="px-4 py-5 max-w-2xl mx-auto space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="text-secondary hover:text-fg p-1">
@@ -134,8 +140,164 @@ export default function WeeklyReview() {
         </div>
       </div>
 
-      {/* KPI row */}
-      <div className="grid grid-cols-4 gap-2">
+      {/* View switcher */}
+      <div className="flex gap-1 bg-input p-1 rounded-xl">
+        <button
+          onClick={() => setView('plan')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all
+            ${view === 'plan' ? 'bg-surface shadow-sm text-fg' : 'text-secondary hover:text-fg'}`}
+        >
+          <ClipboardList size={13} /> Kế hoạch
+        </button>
+        <button
+          onClick={() => setView('report')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all
+            ${view === 'report' ? 'bg-surface shadow-sm text-fg' : 'text-secondary hover:text-fg'}`}
+        >
+          <BarChart2 size={13} /> Báo cáo
+        </button>
+      </div>
+
+      {/* ── PLAN VIEW ── */}
+      {view === 'plan' && (
+        <div className="space-y-5">
+          {/* KPI summary strip */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: 'Xong', value: doneTasks.length, sub: `/${weekTasks.length}`, color: 'text-green-400' },
+              { label: 'Tỉ lệ', value: `${completionRate}%`, color: completionRate >= 70 ? 'text-green-400' : completionRate >= 40 ? 'text-yellow-400' : 'text-red-400' },
+              { label: 'Quá hạn', value: overdueTasks.length, color: overdueTasks.length > 0 ? 'text-red-400' : 'text-secondary' },
+            ].map(k => (
+              <div key={k.label} className="bg-surface border border-edge rounded-xl p-2.5 text-center">
+                <p className={`text-lg font-bold ${k.color}`}>{k.value}<span className="text-xs text-secondary font-normal">{k.sub}</span></p>
+                <p className="text-[10px] text-secondary">{k.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Overdue — urgent */}
+          {overdueTasks.length > 0 && (
+            <div>
+              <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <XCircle size={11} /> Quá hạn — xử lý ngay ({overdueTasks.length})
+              </h3>
+              <div className="space-y-1.5">
+                {overdueTasks.map(t => (
+                  <div key={t.id} className="flex items-center gap-3 px-3 py-2.5 bg-red-500/5 border border-red-500/15 rounded-xl">
+                    <button
+                      onClick={() => markDone(t.id)}
+                      className="w-6 h-6 rounded-full border-2 border-red-400 hover:bg-red-500 hover:border-red-500 flex items-center justify-center shrink-0 transition-colors group"
+                    >
+                      <Check size={11} className="text-red-400 group-hover:text-white" />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-fg truncate">{t.title}</p>
+                      <p className="text-[10px] text-red-400">{t.deadline} · {CATEGORIES[t.category]?.label || 'Ad-hoc'}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Pending this week */}
+          {pendingWeekTasks.filter(t => !overdueTasks.find(o => o.id === t.id)).length > 0 && (
+            <div>
+              <h3 className="text-xs font-bold text-secondary uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <ClipboardList size={11} /> Cần làm tuần này ({pendingWeekTasks.filter(t => !overdueTasks.find(o => o.id === t.id)).length})
+              </h3>
+              <div className="space-y-1.5">
+                {pendingWeekTasks
+                  .filter(t => !overdueTasks.find(o => o.id === t.id))
+                  .sort((a, b) => (a.deadline || '').localeCompare(b.deadline || ''))
+                  .map(t => (
+                    <div key={t.id} className="flex items-center gap-3 px-3 py-2.5 bg-surface border border-edge rounded-xl hover:border-edge-2 transition-colors">
+                      <button
+                        onClick={() => markDone(t.id)}
+                        className="w-6 h-6 rounded-full border-2 border-accent hover:bg-accent flex items-center justify-center shrink-0 transition-colors group"
+                      >
+                        <Check size={11} className="text-accent opacity-0 group-hover:opacity-100" />
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-fg truncate">{t.title}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[10px] text-secondary">{CATEGORIES[t.category]?.label || 'Ad-hoc'}</span>
+                          {t.deadline && <span className="text-[10px] text-secondary/60">· {t.deadline}</span>}
+                          {t.progress > 0 && <span className="text-[10px] text-accent font-mono">· {t.progress}%</span>}
+                        </div>
+                      </div>
+                      {/* Quick progress */}
+                      <div className="flex gap-0.5 shrink-0">
+                        {[25, 50, 75, 100].map(p => (
+                          <button
+                            key={p}
+                            onClick={() => p === 100 ? markDone(t.id) : updateTask(t.id, { progress: p })}
+                            className={`w-6 h-6 rounded-md text-[9px] font-bold transition-colors
+                              ${(t.progress ?? 0) >= p ? 'bg-accent/20 text-accent' : 'bg-input text-secondary/40 hover:bg-hover hover:text-secondary'}`}
+                          >
+                            {p === 100 ? '✓' : `${p}`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {pendingWeekTasks.length === 0 && overdueTasks.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-2xl mb-2">🎉</p>
+              <p className="text-sm font-semibold text-fg">Sạch bóng! Không còn gì cần làm tuần này.</p>
+              <p className="text-xs text-secondary mt-1">Plan thêm task mới hoặc xem báo cáo.</p>
+            </div>
+          )}
+
+          {/* Goals progress */}
+          {activeGoals.length > 0 && (
+            <div>
+              <h3 className="text-xs font-bold text-secondary uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Target size={11} /> Goals đang chạy ({activeGoals.length})
+              </h3>
+              <div className="space-y-3">
+                {activeGoals.map(g => {
+                  const progress = g.progress ?? 0
+                  return (
+                    <div key={g.id} className="bg-surface border border-edge rounded-xl px-3 py-2.5">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium text-fg truncate flex-1 mr-2">{g.title}</p>
+                        <span className="text-xs font-bold text-accent shrink-0">{progress}%</span>
+                      </div>
+                      <div className="h-1.5 bg-input rounded-full overflow-hidden mb-2">
+                        <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${progress}%` }} />
+                      </div>
+                      <div className="flex gap-1">
+                        {[0, 25, 50, 75, 100].map(p => (
+                          <button
+                            key={p}
+                            onClick={() => updateGoal(g.id, { progress: p })}
+                            className={`flex-1 h-6 rounded-md text-[9px] font-semibold transition-colors
+                              ${progress === p ? 'bg-accent text-white' : 'bg-input text-secondary hover:bg-hover'}`}
+                          >
+                            {p}%
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── REPORT VIEW ── */}
+      {view === 'report' && (
+        <div className="space-y-5">
+
+        {/* KPI row */}
+        <div className="grid grid-cols-4 gap-2">
         {[
           { label: 'Hoàn thành', value: doneTasks.length, color: 'text-green-400', sub: `/${weekTasks.length} tasks` },
           { label: 'Tỉ lệ', value: `${completionRate}%`, color: completionRate >= 70 ? 'text-green-400' : completionRate >= 40 ? 'text-yellow-400' : 'text-red-400' },
@@ -254,28 +416,30 @@ export default function WeeklyReview() {
         </div>
       </div>
 
-      {/* Past reviews */}
-      {pastReviews.filter(r => r.weekStart !== weekStart).length > 0 && (
-        <div>
-          <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
-            <Calendar size={11} className="inline mr-1" />Các tuần trước
-          </h3>
-          <div className="space-y-2">
-            {pastReviews.filter(r => r.weekStart !== weekStart).slice(0, 3).map(r => (
-              <button
-                key={r.id}
-                onClick={() => {
-                  const diff = Math.round((new Date(weekStart) - new Date(r.weekStart)) / (7 * 24 * 3600 * 1000))
-                  setWeekOffset(o => o + diff)
-                }}
-                className="w-full text-left px-3 py-2 bg-input rounded-xl hover:bg-hover transition-colors"
-              >
-                <p className="text-xs font-medium text-fg">{r.weekStart} → {r.weekEnd}</p>
-                {r.summary && <p className="text-[11px] text-secondary mt-0.5 truncate">{r.summary.slice(0, 80)}...</p>}
-              </button>
-            ))}
+        {/* Past reviews */}
+        {pastReviews.filter(r => r.weekStart !== weekStart).length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
+              <Calendar size={11} className="inline mr-1" />Các tuần trước
+            </h3>
+            <div className="space-y-2">
+              {pastReviews.filter(r => r.weekStart !== weekStart).slice(0, 3).map(r => (
+                <button
+                  key={r.id}
+                  onClick={() => {
+                    const diff = Math.round((new Date(weekStart) - new Date(r.weekStart)) / (7 * 24 * 3600 * 1000))
+                    setWeekOffset(o => o + diff)
+                  }}
+                  className="w-full text-left px-3 py-2 bg-input rounded-xl hover:bg-hover transition-colors"
+                >
+                  <p className="text-xs font-medium text-fg">{r.weekStart} → {r.weekEnd}</p>
+                  {r.summary && <p className="text-[11px] text-secondary mt-0.5 truncate">{r.summary.slice(0, 80)}...</p>}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+      </div>
       )}
     </div>
   )

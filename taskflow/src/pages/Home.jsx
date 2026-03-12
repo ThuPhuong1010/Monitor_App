@@ -1,7 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { format, isPast, isToday, parseISO } from 'date-fns'
 import { vi } from 'date-fns/locale'
-import { AlertTriangle, ChevronRight, ClipboardList } from 'lucide-react'
+import { AlertTriangle, ChevronRight, ClipboardList, Target, BarChart2 } from 'lucide-react'
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 
@@ -77,11 +77,19 @@ function getGreeting() {
   return list[Math.floor(Math.random() * list.length)]
 }
 
+const WORK_MODE_KEY = 'taskflow_home_mode'
+
 export default function Home() {
   const tasks = useTaskStore(s => s.tasks)
   const focusTasks = useTaskStore(s => s.focusTasks)
   const navigate = useNavigate()
   const { left, right, updateLeft, updateRight } = useWidgetOrder()
+  const [mode, setMode] = useState(() => localStorage.getItem(WORK_MODE_KEY) || 'work')
+
+  const switchMode = (m) => {
+    setMode(m)
+    localStorage.setItem(WORK_MODE_KEY, m)
+  }
 
   const overdue = useMemo(() =>
     tasks.filter(t => t.status !== 'done' && t.deadline &&
@@ -130,7 +138,7 @@ export default function Home() {
     <div className="px-4 pt-5 pb-4 md:px-6 md:pt-6 md:pb-8 overflow-x-hidden">
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between mb-5">
+      <div className="flex items-start justify-between mb-3">
         <div>
           <p className="text-[11px] text-secondary font-medium uppercase tracking-widest">
             {format(new Date(), 'EEEE, d MMMM yyyy', { locale: vi })}
@@ -150,7 +158,25 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ── Overdue alert (pinned, not draggable) ── */}
+      {/* ── Mode toggle ── */}
+      <div className="flex gap-1 bg-input p-1 rounded-xl mb-4">
+        <button
+          onClick={() => switchMode('work')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all
+            ${mode === 'work' ? 'bg-surface shadow-sm text-fg' : 'text-secondary hover:text-fg'}`}
+        >
+          <Target size={12} /> Làm việc
+        </button>
+        <button
+          onClick={() => switchMode('stats')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all
+            ${mode === 'stats' ? 'bg-surface shadow-sm text-fg' : 'text-secondary hover:text-fg'}`}
+        >
+          <BarChart2 size={12} /> Tổng quan
+        </button>
+      </div>
+
+      {/* ── Overdue alert (always visible) ── */}
       {overdue.length > 0 && (
         <button
           onClick={() => navigate('/tasks')}
@@ -171,24 +197,40 @@ export default function Home() {
         </button>
       )}
 
-      {/* ── 2-column widget grid (desktop) / 1-column (mobile) ── */}
-      <div className="md:grid md:grid-cols-[1fr_360px] md:gap-8 md:items-start overflow-hidden">
-
-        {/* LEFT column */}
-        <div className="min-w-0">
-          {renderWidgetList(left, 'left')}
+      {/* ── WORK MODE: clean action view ── */}
+      {mode === 'work' && (
+        <div className="space-y-4 md:grid md:grid-cols-[1fr_360px] md:gap-8 md:items-start md:space-y-0">
+          {/* Main work column */}
+          <div className="space-y-4">
+            <InlineCapture />
+            <ImageCapture />
+            <AttentionTasks />
+            <FocusBoard />
+          </div>
+          {/* Side: goals + calendar (useful for planning) */}
+          <div className="hidden md:flex flex-col gap-4">
+            <GoalsWidget />
+            <DashboardCalendar />
+          </div>
         </div>
+      )}
 
-        {/* RIGHT column — hidden on mobile (shown below left col via separate mobile list) */}
-        <div className="hidden md:block min-w-0">
-          {renderWidgetList(right, 'right')}
-        </div>
-      </div>
-
-      {/* Mobile: right-column widgets stacked below left */}
-      <div className="md:hidden mt-4 overflow-hidden">
-        {renderWidgetList(right, 'right')}
-      </div>
+      {/* ── STATS MODE: full widget dashboard ── */}
+      {mode === 'stats' && (
+        <>
+          <div className="md:grid md:grid-cols-[1fr_360px] md:gap-8 md:items-start overflow-hidden">
+            <div className="min-w-0">
+              {renderWidgetList(left, 'left')}
+            </div>
+            <div className="hidden md:block min-w-0">
+              {renderWidgetList(right, 'right')}
+            </div>
+          </div>
+          <div className="md:hidden mt-4 overflow-hidden">
+            {renderWidgetList(right, 'right')}
+          </div>
+        </>
+      )}
     </div>
   )
 }

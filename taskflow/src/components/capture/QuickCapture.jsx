@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Plus, Mic, MicOff, FileText, Loader2, Zap, Calendar, Flag } from 'lucide-react'
 import Sheet from '../ui/Sheet'
 import AIParsePreview from './AIParsePreview'
 import { CATEGORIES, PRIORITIES } from '../../services/db'
 import { useTaskStore } from '../../store/taskStore'
+import { useUIStore } from '../../store/uiStore'
 import { parseTasksFromText } from '../../services/ai'
 
 const PRIORITY_COLORS = {
@@ -14,7 +15,7 @@ const PRIORITY_COLORS = {
 }
 
 export default function QuickCapture() {
-  const [open, setOpen] = useState(false)
+  const { taskCaptureOpen, openTaskCapture, closeTaskCapture } = useUIStore()
   const [text, setText] = useState('')
   const [category, setCategory] = useState('adhoc')
   const [priority, setPriority] = useState('p2')
@@ -35,7 +36,12 @@ export default function QuickCapture() {
     setRecording(false)
   }
 
-  const handleClose = () => { setOpen(false); reset() }
+  const handleClose = () => { closeTaskCapture(); reset() }
+
+  // Auto-focus when opened externally (keyboard shortcut)
+  useEffect(() => {
+    if (taskCaptureOpen) setTimeout(() => inputRef.current?.focus(), 100)
+  }, [taskCaptureOpen])
 
   const handleSingleSave = async () => {
     if (!text.trim()) return
@@ -115,14 +121,14 @@ export default function QuickCapture() {
     <>
       {/* FAB */}
       <button
-        onClick={() => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 100) }}
+        onClick={() => openTaskCapture()}
         className="fixed bottom-20 right-4 w-14 h-14 bg-accent hover:bg-accent-muted text-white rounded-full shadow-xl flex items-center justify-center z-30 transition-transform active:scale-95"
         aria-label="Quick capture"
       >
         <Plus size={28} strokeWidth={2.5} />
       </button>
 
-      <Sheet open={open} onClose={handleClose} title="Quick Capture">
+      <Sheet open={taskCaptureOpen} onClose={handleClose} title="Quick Capture">
         <div className="p-4 space-y-4">
 
           {/* Mode toggle */}

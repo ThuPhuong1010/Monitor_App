@@ -12,6 +12,8 @@ import NotificationSetup from './components/ui/NotificationSetup'
 import Onboarding from './components/ui/Onboarding'
 import OverdueBlocker from './components/ui/OverdueBlocker'
 import GlobalToast from './components/ui/GlobalToast'
+import IdeaQuickCapture from './components/ui/IdeaQuickCapture'
+import KeyboardShortcutsHelp, { useKeyboardShortcuts } from './components/ui/KeyboardShortcuts'
 import Home from './pages/Home'
 import Tasks from './pages/Tasks'
 import Calendar from './pages/Calendar'
@@ -37,6 +39,11 @@ class ErrorBoundary extends Component {
     }
     return this.props.children
   }
+}
+
+function ShortcutsInit() {
+  useKeyboardShortcuts()
+  return null
 }
 
 function AppContent() {
@@ -79,9 +86,12 @@ function AppContent() {
       <Onboarding />
       <NotificationSetup />
       <QuickCapture />
+      <IdeaQuickCapture />
       <AIChatPanel />
       <GlobalToast />
       <BottomNav />
+      <ShortcutsInit />
+      <KeyboardShortcutsHelp />
     </div>
   )
 }

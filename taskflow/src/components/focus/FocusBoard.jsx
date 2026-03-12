@@ -5,7 +5,7 @@ import { InlinePomodoro } from './PomodoroTimer'
 import { useTaskStore } from '../../store/taskStore'
 import { db } from '../../services/db'
 import { suggestDailyPlan } from '../../services/ai'
-import { scoreTask, detectImpactScope, IMPACT_SCOPE } from '../../services/priorityEngine'
+import { detectImpactScope, IMPACT_SCOPE } from '../../services/priorityEngine'
 import CategoryChip from '../ui/CategoryChip'
 import PriorityBadge from '../ui/PriorityBadge'
 import Sheet from '../ui/Sheet'
@@ -208,14 +208,14 @@ export default function FocusBoard() {
             const scopeId = detectImpactScope(task)
             const scope = IMPACT_SCOPE[scopeId]
             const scopeLevel = { self: 0, team: 1, client: 2, critical: 3 }[scopeId] ?? 0
-            const scored = scoreTask(task)
+
             const progress = task.progress ?? 0
             const isExpanded = expandedId === task.id
             const isDone = task.status === 'done'
 
             return (
               <div key={task.id}
-                className={`rounded-xl border overflow-hidden transition-all ${isDone ? 'opacity-50' : ''}`}
+                className={`rounded-xl border transition-all ${isDone ? 'opacity-50' : ''}`}
                 style={{ borderColor: isExpanded && !isDone ? scope.color + '55' : scopeLevel >= 1 && !isDone ? scope.color + '35' : undefined }}
               >
                 {/* Critical/Client banner */}
@@ -248,11 +248,10 @@ export default function FocusBoard() {
                     <div className="flex gap-1.5 mt-0.5 flex-wrap">
                       <CategoryChip category={task.category} size="xs" />
                       <PriorityBadge priority={task.priority} />
-                      {!isDone && (
+                      {!isDone && scopeLevel >= 1 && (
                         <span className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full border ${scope.bg} ${scope.text} font-semibold`}
                           style={{ borderColor: scope.color + '30' }}>
-                          {scope.emoji} {scope.label}
-                          {scopeLevel >= 1 && <span className="font-mono opacity-80 ml-0.5">×{scope.multiplier}</span>}
+                          {scope.emoji} {scope.label} <span className="font-mono opacity-80">×{scope.multiplier}</span>
                         </span>
                       )}
                     </div>
@@ -266,13 +265,12 @@ export default function FocusBoard() {
                     )}
                   </div>
                   {!isDone && (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[10px] font-bold text-secondary/40 font-mono">{scored.score}</span>
+                    <div className="flex items-center gap-1 shrink-0">
                       <InlinePomodoro taskId={task.id} />
-                      <button onClick={e => { e.stopPropagation(); removeFromFocus(task.id) }} className="text-secondary/50 hover:text-secondary">
-                        <X size={15} />
+                      <button onClick={e => { e.stopPropagation(); removeFromFocus(task.id) }} className="w-6 h-6 flex items-center justify-center text-secondary/40 hover:text-secondary rounded-lg hover:bg-hover transition-colors">
+                        <X size={13} />
                       </button>
-                      <ChevronDown size={13} className={`text-secondary/40 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                      <ChevronDown size={13} className={`text-secondary/30 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
                     </div>
                   )}
                 </div>
