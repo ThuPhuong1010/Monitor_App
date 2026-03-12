@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { db } from '../services/db'
 import { notifyTaskDone } from '../services/telegram'
+import { syncToCloud, deleteFromCloud } from '../services/supabase'
 
 export const useTaskStore = create((set, get) => ({
   tasks: [],
@@ -17,40 +18,53 @@ export const useTaskStore = create((set, get) => ({
   },
 
   addTask: async (task) => {
+    const now = new Date().toISOString()
     const id = await db.tasks.add({
       ...task,
+      cloudId: crypto.randomUUID(),
       status: 'todo',
       progress: 0,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
     })
     const newTask = await db.tasks.get(id)
     set(s => ({ tasks: [newTask, ...s.tasks] }))
+    // Resolve goalId (int) → goal's cloudId (UUID) for Supabase FK
+    const goalCloudId = task.goalId
+      ? (await db.goals.get(task.goalId))?.cloudId ?? null
+      : null
+    syncToCloud('tasks', newTask, goalCloudId ? { goal_id: goalCloudId } : {}).catch(() => {})
     return id
   },
 
   addTasks: async (taskList) => {
     const now = new Date().toISOString()
     const ids = await db.tasks.bulkAdd(
-      taskList.map(t => ({ ...t, status: 'todo', progress: 0, createdAt: now })),
+      taskList.map(t => ({ ...t, cloudId: crypto.randomUUID(), status: 'todo', progress: 0, createdAt: now })),
       { allKeys: true }
     )
     const newTasks = await db.tasks.bulkGet(ids)
     set(s => ({ tasks: [...newTasks, ...s.tasks] }))
+    newTasks.forEach(t => syncToCloud('tasks', t).catch(() => {}))
   },
 
   updateTask: async (id, changes) => {
     await db.tasks.update(id, changes)
+    const existing = get().tasks.find(t => t.id === id)
+    const updated = { ...existing, ...changes }
     set(s => ({
-      tasks: s.tasks.map(t => t.id === id ? { ...t, ...changes } : t),
+      tasks: s.tasks.map(t => t.id === id ? updated : t),
     }))
+    syncToCloud('tasks', updated).catch(() => {})
   },
 
   deleteTask: async (id) => {
+    const task = get().tasks.find(t => t.id === id)
     await db.tasks.delete(id)
     set(s => ({
       tasks: s.tasks.filter(t => t.id !== id),
       focusTasks: s.focusTasks.filter(fid => fid !== id),
     }))
+    deleteFromCloud('tasks', task?.cloudId).catch(() => {})
   },
 
   markDone: async (id) => {
@@ -61,6 +75,7 @@ export const useTaskStore = create((set, get) => ({
       tasks: s.tasks.map(t => t.id === id ? { ...t, status: 'done', doneAt: now, progress: 100 } : t),
     }))
     notifyTaskDone(task).catch(() => {})
+    syncToCloud('tasks', task).catch(() => {})
 
     // Auto-create next occurrence for recurring tasks
     if (task?.recurring && task?.deadline) {
@@ -80,12 +95,14 @@ export const useTaskStore = create((set, get) => ({
           : null,
         deadline: next.toISOString().slice(0, 10),
         goalId: task.goalId || null,
+        cloudId: crypto.randomUUID(),
         status: 'todo',
         progress: 0,
         createdAt: now,
       })
       const nextTask = await db.tasks.get(nextId)
       set(s => ({ tasks: [nextTask, ...s.tasks] }))
+      syncToCloud('tasks', nextTask).catch(() => {})
     }
   },
 

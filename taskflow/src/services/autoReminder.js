@@ -90,8 +90,7 @@ async function sendViaTelegram(text) {
 }
 
 function sendViaBrowser(text) {
-    // Strip HTML tags for browser notification
-    const clean = text.replace(/<[^>]*>/g, '').replace(/\n/g, ' ')
+    const clean = text.replace(/<[^>]*>/g, '').replace(/\\n/g, ' ')
     showNotification(clean, 'reminder')
 }
 
@@ -110,7 +109,6 @@ async function tick() {
 
         // ── 1. Scheduled time-based reminders ──
         if (slot && slotKey !== _lastSentKey) {
-            // Only fire at exact trigger hours window (±2 min)
             const triggerHours = { morning: 9, midday: 12, evening: 17 }
 
             if (h === triggerHours[slot] && m <= 2) {
@@ -118,22 +116,25 @@ async function tick() {
                 const { tasks, pending, focusIds, focusDone } = await getTaskSummary()
                 const statsLine = `\n\n📊 Pending: ${pending.length} | Focus: ${focusDone}/${focusIds.length || 0}`
 
-                // Morning: try AI synthesis of task content first
+                // Morning: try AI synthesis (only if enabled in Settings)
                 if (slot === 'morning') {
-                    try {
-                        const sorted = sortTasksByPrioritySync(tasks)
-                        const synthesis = await synthesizeDailyPriorities(sorted)
-                        if (synthesis?.top3?.length > 0) {
-                            const top3Lines = synthesis.top3
-                                .map((t, i) => `${i + 1}. <b>${t.title}</b>\n   → ${t.reason}`)
-                                .join('\n')
-                            const aiMsg = `🔥 <b>AI đã đọc hết notes và xếp hạng cho mày:</b>\n\n${top3Lines}\n\n💀 ${synthesis.assessment}${statsLine}`
-                            sendViaBrowser(aiMsg)
-                            await sendViaTelegram(aiMsg)
-                            return
+                    const aiDigestEnabled = await getSetting('aiMorningDigest', false)
+                    if (aiDigestEnabled) {
+                        try {
+                            const sorted = sortTasksByPrioritySync(tasks)
+                            const synthesis = await synthesizeDailyPriorities(sorted)
+                            if (synthesis?.top3?.length > 0) {
+                                const top3Lines = synthesis.top3
+                                    .map((t, i) => `${i + 1}. <b>${t.title}</b>\n   → ${t.reason}`)
+                                    .join('\n')
+                                const aiMsg = `🔥 <b>AI đã đọc hết notes và xếp hạng cho mày:</b>\n\n${top3Lines}\n\n💀 ${synthesis.assessment}${statsLine}`
+                                sendViaBrowser(aiMsg)
+                                await sendViaTelegram(aiMsg)
+                                return
+                            }
+                        } catch (_) {
+                            // fall through to default message
                         }
-                    } catch (_) {
-                        // API key not set or error → fall through to default message
                     }
                 }
 
@@ -187,10 +188,10 @@ async function tick() {
 // ─── Public API ──────────────────────────────────────────────────
 
 export function startAutoReminder() {
-    if (_intervalId) return // Already running
+    if (_intervalId) return
     console.log('[AutoReminder] Started — checking every 60s')
-    tick() // Run immediately once
-    _intervalId = setInterval(tick, 60 * 1000) // Every 60 seconds
+    tick()
+    _intervalId = setInterval(tick, 60 * 1000)
 }
 
 export function stopAutoReminder() {

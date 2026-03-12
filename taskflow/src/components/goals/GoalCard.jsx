@@ -27,6 +27,7 @@ export default function GoalCard({ goal }) {
   }
 
   const handleAIBreakdown = async () => {
+    if (!window.confirm('🤖 Dùng AI chia nhỏ goal này? (tốn ~1 API call)')) return
     setAiLoading(true)
     setAiError('')
     setAiTasks(null)

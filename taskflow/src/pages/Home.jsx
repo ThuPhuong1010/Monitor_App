@@ -23,12 +23,16 @@ import DashboardCalendar from '../components/dashboard/DashboardCalendar'
 import GoalsWidget from '../components/dashboard/GoalsWidget'
 import LibraryWidget from '../components/dashboard/LibraryWidget'
 import RoastWidget from '../components/dashboard/RoastWidget'
+import YearProgressWidget from '../components/dashboard/YearProgressWidget'
+import ContributionGraph from '../components/dashboard/ContributionGraph'
+import ImageCapture from '../components/capture/ImageCapture'
 
 // ── Widget registry ───────────────────────────────────────────────
 const WIDGETS = {
   roast: { label: 'Đại Ca Đánh Giá', Component: RoastWidget },
   pomodoro: { label: 'Pomodoro', Component: PomodoroWidget },
   quickCapture: { label: 'Quick Capture', Component: InlineCapture },
+  imageCapture: { label: '📸 Scan Ảnh', Component: ImageCapture },
   attentionTasks: { label: 'Cần chú ý', Component: AttentionTasks },
   focusBoard: { label: "Today's Focus", Component: FocusBoard },
   quickStats: { label: 'Quick Stats', Component: QuickStatsWidget },
@@ -39,6 +43,8 @@ const WIDGETS = {
   dashboardCalendar: { label: 'Calendar', Component: DashboardCalendar },
   goals: { label: 'Goals', Component: GoalsWidget },
   library: { label: 'Library', Component: LibraryWidget },
+  yearProgress: { label: 'Year Progress', Component: YearProgressWidget },
+  contributions: { label: 'Contribution Graph', Component: ContributionGraph },
 }
 
 const GREETINGS = {

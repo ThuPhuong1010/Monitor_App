@@ -123,6 +123,7 @@ export default function Ideas() {
     const handleEnrich = async (id) => {
         const idea = ideas.find(i => i.id === id)
         if (!idea) return
+        if (!window.confirm('🤖 Dùng AI phân tích ý tưởng này? (tốn ~1 API call)')) return
         setEnrichingId(id)
         try {
             const result = await enrichIdea(idea.content)

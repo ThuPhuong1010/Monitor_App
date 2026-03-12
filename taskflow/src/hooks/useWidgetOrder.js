@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 
-export const DEFAULT_LEFT = ['roast', 'pomodoro', 'quickCapture', 'attentionTasks', 'focusBoard', 'quickStats', 'systemMonitor']
-export const DEFAULT_RIGHT = ['weeklyChart', 'categoryBreakdown', 'focusHeatmap', 'dashboardCalendar', 'goals', 'library']
+export const DEFAULT_LEFT = ['roast', 'pomodoro', 'quickCapture', 'imageCapture', 'attentionTasks', 'focusBoard', 'quickStats', 'systemMonitor']
+export const DEFAULT_RIGHT = ['yearProgress', 'weeklyChart', 'categoryBreakdown', 'focusHeatmap', 'dashboardCalendar', 'goals', 'library']
 export const DEFAULT_ORDER = [...DEFAULT_LEFT, ...DEFAULT_RIGHT]
 
 const KEY_LEFT = 'taskflow_widgets_left'
@@ -26,11 +26,13 @@ export function useWidgetOrder() {
   const updateLeft = useCallback((order) => {
     setLeft(order)
     localStorage.setItem(KEY_LEFT, JSON.stringify(order))
+    import('../services/prefsSync').then(({ pushPrefsToCloud }) => pushPrefsToCloud().catch(() => { }))
   }, [])
 
   const updateRight = useCallback((order) => {
     setRight(order)
     localStorage.setItem(KEY_RIGHT, JSON.stringify(order))
+    import('../services/prefsSync').then(({ pushPrefsToCloud }) => pushPrefsToCloud().catch(() => { }))
   }, [])
 
   const reset = useCallback(() => {

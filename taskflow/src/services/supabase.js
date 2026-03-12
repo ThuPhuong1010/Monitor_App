@@ -82,3 +82,81 @@ export async function fetchAll(table, orderBy = 'created_at', ascending = false)
   }
   return data
 }
+
+// ── Dual-write helpers ────────────────────────────────────────────────────────
+
+// camelCase Dexie fields → snake_case Supabase columns
+const FIELD_MAP = {
+  createdAt: 'created_at',
+  estimatedMinutes: 'estimated_minutes',
+  doneAt: 'done_at',
+  coverEmoji: 'cover_emoji',
+  readingMinutes: 'reading_minutes',
+}
+
+// Fields to skip during auto-mapping (handled via overrides or not needed)
+const SKIP_FIELDS = new Set(['id', 'cloudId', 'goalId'])
+
+/**
+ * Sync a Dexie record to Supabase. Fire-and-forget — never throws.
+ * Skips silently if Supabase not configured, user not logged in, or no cloudId.
+ * @param {string} table     - Supabase table name
+ * @param {object} record    - Dexie record (must have cloudId)
+ * @param {object} overrides - Extra Supabase fields (e.g. { goal_id: uuid })
+ */
+export async function syncToCloud(table, record, overrides = {}) {
+  if (!supabase || !record?.cloudId) return
+  const session = await getSession()
+  if (!session) return
+  const supaRec = { id: record.cloudId, user_id: session.user.id }
+  for (const [k, v] of Object.entries(record)) {
+    if (SKIP_FIELDS.has(k)) continue
+    supaRec[FIELD_MAP[k] || k] = v
+  }
+  Object.assign(supaRec, overrides)
+  const { error } = await supabase.from(table).upsert(supaRec)
+  if (error) console.warn(`[supabase] sync ${table}:`, error.message)
+}
+
+/**
+ * Delete a record from Supabase by its cloudId. Fire-and-forget.
+ */
+export async function deleteFromCloud(table, cloudId) {
+  if (!supabase || !cloudId) return
+  const session = await getSession()
+  if (!session) return
+  const { error } = await supabase.from(table).delete().eq('id', cloudId)
+  if (error) console.warn(`[supabase] delete ${table}:`, error.message)
+}
+
+// ── User Preferences helpers ──────────────────────────────────────────────────
+
+/**
+ * Upsert user preferences. Primary key là user_id (không cần cloudId).
+ */
+export async function syncPreferences(prefs) {
+  if (!supabase) return
+  const session = await getSession()
+  if (!session) return
+  const { error } = await supabase.from('user_preferences').upsert({
+    user_id: session.user.id,
+    ...prefs,
+    updated_at: new Date().toISOString(),
+  })
+  if (error) console.warn('[supabase] sync preferences:', error.message)
+}
+
+/**
+ * Fetch user preferences từ Supabase. Returns null nếu chưa login hoặc chưa có row.
+ */
+export async function fetchPreferences() {
+  if (!supabase) return null
+  const session = await getSession()
+  if (!session) return null
+  const { data, error } = await supabase
+    .from('user_preferences')
+    .select('*')
+    .maybeSingle()
+  if (error) return null
+  return data
+}

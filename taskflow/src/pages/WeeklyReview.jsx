@@ -95,12 +95,21 @@ export default function WeeklyReview() {
   }
 
   const handleSave = async () => {
+    const { syncToCloud } = await import('../services/supabase')
     const existing = await db.weeklyReviews.where('weekStart').equals(weekStart).first()
+    let cloudId
     if (existing) {
-      await db.weeklyReviews.update(existing.id, { summary: aiSummary, updatedAt: new Date().toISOString() })
+      cloudId = existing.cloudId
+      if (!cloudId) {
+        cloudId = crypto.randomUUID()
+      }
+      await db.weeklyReviews.update(existing.id, { summary: aiSummary, cloudId, updatedAt: new Date().toISOString() })
     } else {
-      await db.weeklyReviews.add({ weekStart, weekEnd, summary: aiSummary, createdAt: new Date().toISOString() })
+      cloudId = crypto.randomUUID()
+      await db.weeklyReviews.add({ weekStart, weekEnd, summary: aiSummary, cloudId, createdAt: new Date().toISOString() })
     }
+    // weekly_reviews schema: week_start, ai_summary, data — no created_at column
+    syncToCloud('weekly_reviews', { cloudId }, { week_start: weekStart, ai_summary: aiSummary }).catch(() => {})
     setSaved(true)
   }
 

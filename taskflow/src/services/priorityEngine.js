@@ -208,4 +208,5 @@ export async function loadCustomRules() {
 
 export async function saveCustomRules(rules) {
   await setSetting('priorityRules', rules)
+  import('./prefsSync').then(({ pushPrefsToCloud }) => pushPrefsToCloud().catch(() => {}))
 }

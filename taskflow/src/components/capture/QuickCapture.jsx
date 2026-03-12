@@ -48,12 +48,13 @@ export default function QuickCapture() {
 
   const handleAIParse = async () => {
     if (!text.trim()) return
+    if (!window.confirm('🤖 Dùng AI phân tích text này? (tốn ~1 API call)')) return
     setParsing(true); setError('')
     try {
       const tasks = await parseTasksFromText(text)
       setAiParsed(tasks)
     } catch (e) {
-      if (e.message === 'NO_API_KEY') setError('Chưa có Claude API key. Vào Settings để thêm.')
+      if (e.message === 'NO_API_KEY') setError('Chưa có API key. Vào Settings để thêm.')
       else setError('AI parse thất bại: ' + e.message)
     } finally {
       setParsing(false)

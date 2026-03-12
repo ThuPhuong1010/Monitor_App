@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { db } from '../services/db'
+import { syncToCloud, deleteFromCloud } from '../services/supabase'
 
 export const useIdeaStore = create((set, get) => ({
     ideas: [],
@@ -13,25 +14,31 @@ export const useIdeaStore = create((set, get) => ({
     addIdea: async (idea) => {
         const id = await db.ideas.add({
             ...idea,
+            cloudId: crypto.randomUUID(),
             status: 'active',
             pinned: 0,
             createdAt: new Date().toISOString(),
         })
         const newIdea = await db.ideas.get(id)
         set(s => ({ ideas: [newIdea, ...s.ideas] }))
+        syncToCloud('ideas', newIdea, { pinned: false }).catch(() => {})
         return id
     },
 
     updateIdea: async (id, changes) => {
         await db.ideas.update(id, changes)
+        const updated = { ...get().ideas.find(i => i.id === id), ...changes }
         set(s => ({
-            ideas: s.ideas.map(i => i.id === id ? { ...i, ...changes } : i),
+            ideas: s.ideas.map(i => i.id === id ? updated : i),
         }))
+        syncToCloud('ideas', updated, { pinned: !!updated.pinned }).catch(() => {})
     },
 
     deleteIdea: async (id) => {
+        const idea = get().ideas.find(i => i.id === id)
         await db.ideas.delete(id)
         set(s => ({ ideas: s.ideas.filter(i => i.id !== id) }))
+        deleteFromCloud('ideas', idea?.cloudId).catch(() => {})
     },
 
     togglePin: async (id) => {
@@ -39,16 +46,20 @@ export const useIdeaStore = create((set, get) => ({
         if (!idea) return
         const pinned = idea.pinned ? 0 : 1
         await db.ideas.update(id, { pinned })
+        const updated = { ...idea, pinned }
         set(s => ({
-            ideas: s.ideas.map(i => i.id === id ? { ...i, pinned } : i),
+            ideas: s.ideas.map(i => i.id === id ? updated : i),
         }))
+        syncToCloud('ideas', updated, { pinned: !!pinned }).catch(() => {})
     },
 
     archiveIdea: async (id) => {
         await db.ideas.update(id, { status: 'archived' })
+        const updated = { ...get().ideas.find(i => i.id === id), status: 'archived' }
         set(s => ({
-            ideas: s.ideas.map(i => i.id === id ? { ...i, status: 'archived' } : i),
+            ideas: s.ideas.map(i => i.id === id ? updated : i),
         }))
+        syncToCloud('ideas', updated, { pinned: !!updated.pinned }).catch(() => {})
     },
 
     convertToTask: async (id) => {
@@ -82,8 +93,10 @@ export const useIdeaStore = create((set, get) => ({
 
     updateIdeaEnrichment: async (id, enrichment) => {
         await db.ideas.update(id, { enrichment })
+        const updated = { ...get().ideas.find(i => i.id === id), enrichment }
         set(s => ({
-            ideas: s.ideas.map(i => i.id === id ? { ...i, enrichment } : i),
+            ideas: s.ideas.map(i => i.id === id ? updated : i),
         }))
+        syncToCloud('ideas', updated, { pinned: !!updated.pinned }).catch(() => {})
     },
 }))

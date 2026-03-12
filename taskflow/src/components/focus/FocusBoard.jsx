@@ -1,13 +1,23 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Check, Plus, X, ChevronRight, RotateCcw, Sparkles, Loader2 } from 'lucide-react'
+import { Check, Plus, X, ChevronRight, RotateCcw, Sparkles, Loader2, ChevronDown, Pencil } from 'lucide-react'
+import { isPast, isToday, parseISO } from 'date-fns'
 import { InlinePomodoro } from './PomodoroTimer'
 import { useTaskStore } from '../../store/taskStore'
 import { db } from '../../services/db'
 import { suggestDailyPlan } from '../../services/ai'
-import { scoreTask } from '../../services/priorityEngine'
+import { scoreTask, detectImpactScope, IMPACT_SCOPE } from '../../services/priorityEngine'
 import CategoryChip from '../ui/CategoryChip'
 import PriorityBadge from '../ui/PriorityBadge'
 import Sheet from '../ui/Sheet'
+import { useNavigate } from 'react-router-dom'
+
+const SCOPE_DESC = {
+  self:     'Chỉ ảnh hưởng bạn — có thể điều chỉnh lịch linh hoạt.',
+  team:     'Người khác đang chờ kết quả — delay = block cả team.',
+  client:   'Khách hàng / sếp đang theo dõi — trễ = mất điểm ngay.',
+  critical: 'Không làm = mọi thứ dừng lại — ưu tiên tuyệt đối.',
+}
+const SCOPE_MULTIPLIERS = [1.0, 1.4, 1.8, 2.5]
 
 export default function FocusBoard() {
   const tasks = useTaskStore(s => s.tasks)
@@ -15,10 +25,14 @@ export default function FocusBoard() {
   const addToFocus = useTaskStore(s => s.addToFocus)
   const removeFromFocus = useTaskStore(s => s.removeFromFocus)
   const markDone = useTaskStore(s => s.markDone)
+  const updateTask = useTaskStore(s => s.updateTask)
   const setFocus = useTaskStore(s => s.setFocus)
+  const navigate = useNavigate()
   const [showPicker, setShowPicker] = useState(false)
   const [search, setSearch] = useState('')
-  const [carryOver, setCarryOver] = useState([]) // tasks from yesterday not done
+  const [carryOver, setCarryOver] = useState([])
+  const [expandedId, setExpandedId] = useState(null)
+  const [noteInput, setNoteInput] = useState('')
 
   // AI suggest state
   const [aiLoading, setAiLoading] = useState(false)
@@ -59,6 +73,7 @@ export default function FocusBoard() {
   }
 
   const handleAISuggest = async () => {
+    if (!window.confirm('🤖 Dùng AI gợi ý focus hôm nay? (tốn ~1 API call)')) return
     setAiLoading(true)
     setAiSuggestion(null)
     try {
@@ -190,39 +205,197 @@ export default function FocusBoard() {
         {slots.map((_, i) => {
           const task = focusItems[i]
           if (task) {
+            const scopeId = detectImpactScope(task)
+            const scope = IMPACT_SCOPE[scopeId]
+            const scopeLevel = { self: 0, team: 1, client: 2, critical: 3 }[scopeId] ?? 0
+            const scored = scoreTask(task)
+            const progress = task.progress ?? 0
+            const isExpanded = expandedId === task.id
+            const isDone = task.status === 'done'
+
             return (
-              <div
-                key={task.id}
-                className={`flex items-center gap-3 p-3 rounded-xl border transition-all
-                  ${task.status === 'done'
-                    ? 'bg-surface border-edge opacity-50'
-                    : 'bg-surface border-edge hover:border-edge-2'}`}
+              <div key={task.id}
+                className={`rounded-xl border overflow-hidden transition-all ${isDone ? 'opacity-50' : ''}`}
+                style={{ borderColor: isExpanded && !isDone ? scope.color + '55' : scopeLevel >= 1 && !isDone ? scope.color + '35' : undefined }}
               >
-                <button
-                  onClick={() => handleDone(task)}
-                  disabled={task.status === 'done'}
-                  className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-all
-                    ${task.status === 'done'
-                      ? 'bg-green-500 border-green-500 text-white'
-                      : 'border-accent hover:bg-accent-soft'}`}
-                >
-                  {task.status === 'done' && <Check size={14} strokeWidth={3} />}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium truncate ${task.status === 'done' ? 'line-through text-secondary' : 'text-fg'}`}>
-                    {task.title}
-                  </p>
-                  <div className="flex gap-1.5 mt-0.5">
-                    <CategoryChip category={task.category} size="xs" />
-                    <PriorityBadge priority={task.priority} />
+                {/* Critical/Client banner */}
+                {scopeLevel >= 2 && !isDone && (
+                  <div className={`flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold ${scope.text}`}
+                    style={{ background: `linear-gradient(90deg, ${scope.color}22, transparent)` }}>
+                    {scope.emoji} {scopeId === 'critical' ? 'CRITICAL — Ưu tiên tuyệt đối' : 'Client / Sếp đang theo dõi'}
+                    <span className="ml-auto font-mono opacity-70">×{scope.multiplier}</span>
                   </div>
+                )}
+
+                {/* Compact row */}
+                <div
+                  onClick={() => !isDone && setExpandedId(isExpanded ? null : task.id)}
+                  className={`flex items-center gap-3 px-3 py-2.5 bg-surface transition-all
+                    ${isDone ? '' : 'hover:bg-hover cursor-pointer'}`}
+                >
+                  <button
+                    onClick={e => { e.stopPropagation(); handleDone(task) }}
+                    disabled={isDone}
+                    className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-all
+                      ${isDone ? 'bg-green-500 border-green-500 text-white' : 'border-accent hover:bg-accent-soft'}`}
+                  >
+                    {isDone && <Check size={14} strokeWidth={3} />}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium truncate ${isDone ? 'line-through text-secondary' : 'text-fg'}`}>
+                      {task.title}
+                    </p>
+                    <div className="flex gap-1.5 mt-0.5 flex-wrap">
+                      <CategoryChip category={task.category} size="xs" />
+                      <PriorityBadge priority={task.priority} />
+                      {!isDone && (
+                        <span className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full border ${scope.bg} ${scope.text} font-semibold`}
+                          style={{ borderColor: scope.color + '30' }}>
+                          {scope.emoji} {scope.label}
+                          {scopeLevel >= 1 && <span className="font-mono opacity-80 ml-0.5">×{scope.multiplier}</span>}
+                        </span>
+                      )}
+                    </div>
+                    {progress > 0 && (
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <div className="flex-1 h-1 bg-edge rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all bg-accent" style={{ width: `${progress}%` }} />
+                        </div>
+                        <span className="text-[9px] text-secondary font-mono">{progress}%</span>
+                      </div>
+                    )}
+                  </div>
+                  {!isDone && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-bold text-secondary/40 font-mono">{scored.score}</span>
+                      <InlinePomodoro taskId={task.id} />
+                      <button onClick={e => { e.stopPropagation(); removeFromFocus(task.id) }} className="text-secondary/50 hover:text-secondary">
+                        <X size={15} />
+                      </button>
+                      <ChevronDown size={13} className={`text-secondary/40 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                    </div>
+                  )}
                 </div>
-                {task.status !== 'done' && (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <InlinePomodoro taskId={task.id} />
-                    <button onClick={() => removeFromFocus(task.id)} className="text-secondary/50 hover:text-secondary">
-                      <X size={16} />
-                    </button>
+
+                {/* Expanded quick panel */}
+                {isExpanded && !isDone && (
+                  <div className="bg-input border-t px-3 py-3 space-y-3"
+                    style={{ borderColor: scope.color + '25' }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {/* Scope block */}
+                    <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${scope.bg}`}
+                      style={{ border: `1px solid ${scope.color}25` }}>
+                      <span className="text-lg shrink-0 leading-none">{scope.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className={`text-[11px] font-bold ${scope.text}`}>{scope.label}</span>
+                          <span className={`text-[10px] font-mono font-bold ${scope.text} opacity-70`}>×{scope.multiplier}</span>
+                        </div>
+                        <p className="text-[10px] text-secondary leading-snug">{SCOPE_DESC[scopeId]}</p>
+                      </div>
+                      <div className="flex items-end gap-0.5 shrink-0">
+                        {SCOPE_MULTIPLIERS.map((m, j) => (
+                          <div key={j} className="w-1.5 rounded-sm"
+                            style={{ height: `${8 + j * 4}px`, background: m <= scope.multiplier ? scope.color : scope.color + '20' }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Notes + deadline */}
+                    {(task.notes || task.deadline) && (
+                      <div className="space-y-1">
+                        {task.notes && <p className="text-xs text-secondary leading-relaxed line-clamp-3">{task.notes}</p>}
+                        {task.deadline && (
+                          <p className="text-[11px] text-secondary">
+                            📅 {task.deadline}
+                            {isPast(parseISO(task.deadline)) && !isToday(parseISO(task.deadline)) &&
+                              <span className="text-red-400 ml-1 font-medium">— quá hạn</span>}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Progress track */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] text-secondary font-medium">Tiến độ</span>
+                        <span className="text-[11px] font-bold text-fg">{progress}%</span>
+                      </div>
+                      <div className="w-full h-2 bg-edge rounded-full overflow-hidden mb-2">
+                        <div className="h-full rounded-full transition-all duration-300 bg-accent" style={{ width: `${progress}%` }} />
+                      </div>
+                      <div className="flex gap-1">
+                        {[0, 25, 50, 75, 100].map(p => (
+                          <button key={p}
+                            onClick={e => { e.stopPropagation(); updateTask(task.id, { progress: p }) }}
+                            className={`flex-1 h-8 rounded-lg text-[10px] font-semibold transition-colors
+                              ${progress === p ? 'bg-accent text-white' : 'bg-surface text-secondary hover:bg-hover'}`}
+                          >
+                            {p}%
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Note log */}
+                    <div>
+                      <p className="text-[11px] text-secondary font-medium mb-1.5">Ghi chú tiến độ</p>
+                      <div className="flex gap-1.5">
+                        <input
+                          value={noteInput}
+                          onChange={e => setNoteInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && noteInput.trim()) {
+                              updateTask(task.id, { progressLog: [...(task.progressLog || []), { at: new Date().toISOString(), note: noteInput.trim(), progress }] })
+                              setNoteInput('')
+                            }
+                          }}
+                          placeholder="Ghi nhanh... (Enter để lưu)"
+                          className="flex-1 bg-surface border border-edge rounded-lg px-2.5 py-1.5 text-xs text-fg placeholder-secondary/50 focus:outline-none focus:border-accent"
+                        />
+                        <button
+                          onClick={e => {
+                            e.stopPropagation()
+                            if (!noteInput.trim()) return
+                            updateTask(task.id, { progressLog: [...(task.progressLog || []), { at: new Date().toISOString(), note: noteInput.trim(), progress }] })
+                            setNoteInput('')
+                          }}
+                          className="h-8 px-2.5 bg-accent hover:bg-accent-muted text-white rounded-lg text-xs font-semibold transition-colors shrink-0"
+                        >+</button>
+                      </div>
+                      {task.progressLog?.length > 0 && (
+                        <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
+                          {[...task.progressLog].reverse().map((entry, j) => (
+                            <div key={j} className="flex items-start gap-2 text-[10px]">
+                              <span className="text-secondary/50 shrink-0 font-mono">
+                                {new Date(entry.at).toLocaleDateString('vi', { month: 'numeric', day: 'numeric' })}
+                                {' '}{new Date(entry.at).toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              <span className="text-secondary flex-1 leading-snug">{entry.note}</span>
+                              <span className="text-secondary/40 shrink-0 font-mono">{entry.progress}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2 pt-1 border-t border-edge">
+                      <button
+                        onClick={e => { e.stopPropagation(); handleDone(task) }}
+                        className="flex-1 h-9 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <Check size={13} /> Hoàn thành
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); navigate('/tasks', { state: { openTaskId: task.id } }) }}
+                        className="flex-1 h-9 bg-surface border border-edge hover:bg-hover text-fg rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <Pencil size={13} /> Chỉnh sửa
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

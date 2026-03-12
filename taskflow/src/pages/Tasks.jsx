@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus } from 'lucide-react'
 import { useTaskStore } from '../store/taskStore'
 import TaskCard from '../components/tasks/TaskCard'
 import TaskForm from '../components/tasks/TaskForm'
 import { CATEGORIES } from '../services/db'
+import { useLocation } from 'react-router-dom'
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -18,6 +19,17 @@ export default function Tasks() {
   const [filter, setFilter] = useState('all')
   const [editTask, setEditTask] = useState(null)
   const [showForm, setShowForm] = useState(false)
+  const location = useLocation()
+
+  // Auto-open task when navigated from dashboard with openTaskId
+  useEffect(() => {
+    const id = location.state?.openTaskId
+    if (!id || tasks.length === 0) return
+    const task = tasks.find(t => t.id === id)
+    if (task) setEditTask(task)
+    // Clear state so back-navigation doesn't re-open
+    window.history.replaceState({}, '')
+  }, [location.state?.openTaskId, tasks])
 
   const filtered = tasks.filter(t => {
     if (filter !== 'all' && t.category !== filter) return false

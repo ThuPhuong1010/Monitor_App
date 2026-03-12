@@ -11,6 +11,7 @@ import AIChatPanel from './components/chat/AIChatPanel'
 import NotificationSetup from './components/ui/NotificationSetup'
 import Onboarding from './components/ui/Onboarding'
 import OverdueBlocker from './components/ui/OverdueBlocker'
+import GlobalToast from './components/ui/GlobalToast'
 import Home from './pages/Home'
 import Tasks from './pages/Tasks'
 import Calendar from './pages/Calendar'
@@ -79,6 +80,7 @@ function AppContent() {
       <NotificationSetup />
       <QuickCapture />
       <AIChatPanel />
+      <GlobalToast />
       <BottomNav />
     </div>
   )

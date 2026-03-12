@@ -1,116 +1,108 @@
-import { useState } from 'react'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay, parseISO } from 'date-fns'
-import { vi } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useMemo } from 'react'
+import {
+  format, startOfMonth, endOfMonth, eachDayOfInterval,
+  isSameMonth, isToday, startOfWeek, endOfWeek,
+} from 'date-fns'
+import { Plus } from 'lucide-react'
 import { useTaskStore } from '../../store/taskStore'
 import { CATEGORIES } from '../../services/db'
 
-export default function MonthView() {
-  const [current, setCurrent] = useState(new Date())
-  const [selected, setSelected] = useState(new Date())
+export default function MonthView({ date = new Date(), onDayClick, onQuickAdd }) {
   const tasks = useTaskStore(s => s.tasks)
-  const focusTasks = useTaskStore(s => s.focusTasks)
 
-  const days = eachDayOfInterval({ start: startOfMonth(current), end: endOfMonth(current) })
-  const startDay = startOfMonth(current).getDay() // 0=Sun
+  // Get 6-week grid (always 42 cells like Google Calendar)
+  const monthStart = startOfMonth(date)
+  const monthEnd = endOfMonth(date)
+  const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 }) // Monday
+  const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
+  const days = eachDayOfInterval({ start: gridStart, end: gridEnd })
 
-  // Get tasks for a day
-  const getTasksForDay = (day) =>
-    tasks.filter(t => t.deadline && isSameDay(parseISO(t.deadline), day) && t.status !== 'done')
-
-  const selectedTasks = getTasksForDay(selected)
-  const focusTaskObjects = focusTasks.map(id => tasks.find(t => t.id === id)).filter(Boolean)
+  // Index tasks by deadline date
+  const tasksByDay = useMemo(() => {
+    const map = {}
+    tasks.forEach(t => {
+      if (!t.deadline) return
+      const key = t.deadline.slice(0, 10)
+      if (!map[key]) map[key] = []
+      map[key].push(t)
+    })
+    return map
+  }, [tasks])
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <button onClick={() => setCurrent(d => new Date(d.getFullYear(), d.getMonth() - 1))}
-          className="w-9 h-9 rounded-xl bg-input flex items-center justify-center text-secondary hover:text-fg">
-          <ChevronLeft size={18} />
-        </button>
-        <h2 className="font-semibold text-fg">{format(current, 'MMMM yyyy', { locale: vi })}</h2>
-        <button onClick={() => setCurrent(d => new Date(d.getFullYear(), d.getMonth() + 1))}
-          className="w-9 h-9 rounded-xl bg-input flex items-center justify-center text-secondary hover:text-fg">
-          <ChevronRight size={18} />
-        </button>
-      </div>
-
+    <div className="flex flex-col h-full px-4 pb-2">
       {/* Weekday headers */}
-      <div className="grid grid-cols-7 text-center">
-        {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map(d => (
-          <div key={d} className="text-[10px] font-medium text-secondary py-1">{d}</div>
+      <div className="grid grid-cols-7 border-b border-edge">
+        {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(d => (
+          <div key={d} className="text-[10px] font-semibold text-secondary/60 text-center py-2">
+            {d}
+          </div>
         ))}
       </div>
 
       {/* Days grid */}
-      <div className="grid grid-cols-7 gap-y-1">
-        {/* Empty cells for first row */}
-        {Array.from({ length: startDay }).map((_, i) => <div key={`e${i}`} />)}
-
+      <div className="grid grid-cols-7 flex-1 auto-rows-fr">
         {days.map(day => {
-          const dayTasks = getTasksForDay(day)
+          const key = format(day, 'yyyy-MM-dd')
+          const dayTasks = tasksByDay[key] || []
+          const pending = dayTasks.filter(t => t.status !== 'done')
+          const done = dayTasks.filter(t => t.status === 'done')
           const _isToday = isToday(day)
-          const _isSelected = isSameDay(day, selected)
+          const inMonth = isSameMonth(day, date)
 
           return (
-            <button
-              key={day.toISOString()}
-              onClick={() => setSelected(day)}
-              className={`relative flex flex-col items-center py-1.5 rounded-xl transition-all
-                ${_isSelected ? 'bg-accent text-white' : _isToday ? 'bg-accent-soft text-accent' : 'text-fg-2 hover:bg-hover'}
-                ${!isSameMonth(day, current) ? 'opacity-30' : ''}`}
+            <div
+              key={key}
+              onClick={() => onDayClick?.(day)}
+              className={`border-b border-r border-edge p-1 cursor-pointer hover:bg-hover/50 transition-colors min-h-[60px] group relative
+                ${!inMonth ? 'opacity-35 bg-input/30' : ''}`}
             >
-              <span className="text-sm font-medium">{format(day, 'd')}</span>
-              {/* Dot indicators */}
-              {dayTasks.length > 0 && (
-                <div className="flex gap-0.5 mt-0.5">
-                  {dayTasks.slice(0, 3).map((t, i) => (
-                    <span key={i} className="w-1 h-1 rounded-full" style={{ background: CATEGORIES[t.category]?.color || '#666' }} />
-                  ))}
-                </div>
-              )}
-            </button>
+              {/* Day number */}
+              <div className="flex items-center justify-between">
+                <span className={`text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full
+                  ${_isToday ? 'bg-accent text-white' : 'text-fg-2'}`}
+                >
+                  {format(day, 'd')}
+                </span>
+                {/* Quick add button (on hover) */}
+                {inMonth && (
+                  <button
+                    onClick={e => { e.stopPropagation(); onQuickAdd?.(day) }}
+                    className="w-5 h-5 rounded flex items-center justify-center text-secondary/0 group-hover:text-secondary hover:text-accent hover:bg-accent/10 transition-all"
+                  >
+                    <Plus size={12} />
+                  </button>
+                )}
+              </div>
+
+              {/* Task chips */}
+              <div className="mt-0.5 space-y-0.5 overflow-hidden">
+                {pending.slice(0, 2).map(t => (
+                  <div
+                    key={t.id}
+                    className="text-[10px] leading-tight px-1 py-0.5 rounded truncate font-medium"
+                    style={{
+                      background: (CATEGORIES[t.category]?.color || '#666') + '20',
+                      color: CATEGORIES[t.category]?.color || '#666',
+                    }}
+                  >
+                    {t.title}
+                  </div>
+                ))}
+                {done.length > 0 && pending.length < 2 && (
+                  <div className="text-[10px] leading-tight px-1 py-0.5 rounded truncate text-green-500 bg-green-500/10">
+                    ✓ {done.length} done
+                  </div>
+                )}
+                {pending.length > 2 && (
+                  <span className="text-[9px] text-secondary font-medium pl-1">
+                    +{pending.length - 2} nữa
+                  </span>
+                )}
+              </div>
+            </div>
           )
         })}
-      </div>
-
-      {/* Selected day detail */}
-      <div className="bg-surface rounded-xl p-3 space-y-2 border border-edge">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-fg">
-            {isToday(selected) ? 'Hôm nay' : format(selected, 'EEEE, d MMMM', { locale: vi })}
-          </h3>
-          <span className="text-xs text-secondary">{selectedTasks.length} tasks</span>
-        </div>
-
-        {isToday(selected) && focusTaskObjects.length > 0 && (
-          <div className="space-y-1.5">
-            <p className="text-[10px] text-accent font-semibold uppercase tracking-wider">Today's Focus</p>
-            {focusTaskObjects.map(t => (
-              <div key={t.id} className="flex items-center gap-2 text-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-                <span className={t.status === 'done' ? 'line-through text-secondary' : 'text-fg'}>{t.title}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {selectedTasks.length > 0 ? (
-          <div className="space-y-1.5">
-            {isToday(selected) && focusTaskObjects.length > 0 && (
-              <p className="text-[10px] text-secondary font-semibold uppercase tracking-wider">Deadline hôm nay</p>
-            )}
-            {selectedTasks.map(t => (
-              <div key={t.id} className="flex items-center gap-2 text-sm">
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: CATEGORIES[t.category]?.color }} />
-                <span className="text-fg-2 truncate">{t.title}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          !isToday(selected) && <p className="text-xs text-secondary/50">Không có task nào deadline ngày này</p>
-        )}
       </div>
     </div>
   )
