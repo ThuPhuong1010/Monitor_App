@@ -69,30 +69,32 @@ function AppContent() {
   }, [tasks])
 
   return (
-    <div className="min-h-full relative md:ml-[220px]">
-      <main className="pb-24 md:pb-8">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/tasks" element={<Tasks />} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/goals" element={<Goals />} />
-          <Route path="/library" element={<Library />} />
-          <Route path="/ideas" element={<Ideas />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/review" element={<WeeklyReview />} />
-        </Routes>
-      </main>
-      <OverdueBlocker />
-      <Onboarding />
-      <NotificationSetup />
-      <QuickCapture />
-      <IdeaQuickCapture />
-      <AIChatPanel />
-      <GlobalToast />
+    <>
       <BottomNav />
-      <ShortcutsInit />
-      <KeyboardShortcutsHelp />
-    </div>
+      <div className="min-h-full md:ml-[220px]">
+        <main className="pb-24 md:pb-8">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/tasks" element={<Tasks />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/goals" element={<Goals />} />
+            <Route path="/library" element={<Library />} />
+            <Route path="/ideas" element={<Ideas />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/review" element={<WeeklyReview />} />
+          </Routes>
+        </main>
+        <OverdueBlocker />
+        <Onboarding />
+        <NotificationSetup />
+        <QuickCapture />
+        <IdeaQuickCapture />
+        <AIChatPanel />
+        <GlobalToast />
+        <ShortcutsInit />
+        <KeyboardShortcutsHelp />
+      </div>
+    </>
   )
 }
 

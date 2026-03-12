@@ -201,11 +201,13 @@ export default function Home() {
       {mode === 'work' && (
         <div className="space-y-4 md:grid md:grid-cols-[1fr_360px] md:gap-8 md:items-start md:space-y-0">
           {/* Main work column */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <InlineCapture />
             <ImageCapture />
-            <AttentionTasks />
-            <FocusBoard />
+            <div className="lg:grid lg:grid-cols-2 lg:gap-4 space-y-3 lg:space-y-0">
+              <AttentionTasks limit={3} />
+              <FocusBoard />
+            </div>
           </div>
           {/* Side: goals + calendar (useful for planning) */}
           <div className="hidden md:flex flex-col gap-4">

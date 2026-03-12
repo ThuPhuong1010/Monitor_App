@@ -51,7 +51,7 @@ const SCOPE_DESC = {
 
 const SCOPE_MULTIPLIERS = [1.0, 1.4, 1.8, 2.5]
 
-export default function AttentionTasks() {
+export default function AttentionTasks({ limit = 5 }) {
   const tasks = useTaskStore(s => s.tasks)
   const markDone = useTaskStore(s => s.markDone)
   const updateTask = useTaskStore(s => s.updateTask)
@@ -79,7 +79,7 @@ export default function AttentionTasks() {
 
   // Apply AI ranking order if available
   const attentionTasks = useMemo(() => {
-    if (!aiRanked || aiRanked.length === 0) return scored.slice(0, 5)
+    if (!aiRanked || aiRanked.length === 0) return scored.slice(0, limit)
     // Re-order scored tasks per AI rank
     const ordered = []
     for (const r of aiRanked) {
@@ -90,8 +90,8 @@ export default function AttentionTasks() {
     for (const t of scored) {
       if (!ordered.find(o => o.id === t.id)) ordered.push(t)
     }
-    return ordered.slice(0, 5)
-  }, [scored, aiRanked])
+    return ordered.slice(0, limit)
+  }, [scored, aiRanked, limit])
 
   if (scored.length === 0) return null
 

@@ -103,7 +103,7 @@ export default function BottomNav() {
       )}
 
       {/* Desktop: side rail */}
-      <nav className="hidden md:flex fixed left-0 top-0 bottom-0 w-[220px] bg-elevated border-r border-edge flex-col z-40">
+      <nav className="hidden md:flex fixed left-0 top-0 bottom-0 w-[220px] bg-surface border-r border-edge-2 flex-col z-40">
         <div className="px-5 pt-6 pb-4">
           <h1 className="text-lg font-bold text-fg tracking-tight">TaskFlow</h1>
           <p className="text-[10px] text-secondary/60 mt-0.5">Personal dashboard</p>

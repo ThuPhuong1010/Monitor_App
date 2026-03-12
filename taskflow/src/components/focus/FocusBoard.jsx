@@ -258,7 +258,7 @@ export default function FocusBoard() {
                     {progress > 0 && (
                       <div className="mt-1.5 flex items-center gap-1.5">
                         <div className="flex-1 h-1 bg-edge rounded-full overflow-hidden">
-                          <div className="h-full rounded-full transition-all bg-accent" style={{ width: `${progress}%` }} />
+                          <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: isDone ? '#6b7280' : scope.color }} />
                         </div>
                         <span className="text-[9px] text-secondary font-mono">{progress}%</span>
                       </div>
@@ -399,6 +399,8 @@ export default function FocusBoard() {
               </div>
             )
           }
+          // Only show the first unfilled slot (i === focusTasks.length)
+          if (i !== focusTasks.length) return null
           return (
             <button
               key={i}
