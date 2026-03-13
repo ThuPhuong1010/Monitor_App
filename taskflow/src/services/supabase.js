@@ -98,7 +98,7 @@ const FIELD_MAP = {
 }
 
 // Fields to skip during auto-mapping (handled via overrides or not needed)
-const SKIP_FIELDS = new Set(['id', 'cloudId', 'goalId'])
+const SKIP_FIELDS = new Set(['id', 'cloudId', 'goalId', 'impactScope', '_score', '_breakdown', '_scope'])
 
 /**
  * Sync a Dexie record to Supabase. Fire-and-forget — never throws.
