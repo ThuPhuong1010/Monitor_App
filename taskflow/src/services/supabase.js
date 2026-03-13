@@ -92,6 +92,7 @@ const FIELD_MAP = {
   doneAt: 'done_at',
   coverEmoji: 'cover_emoji',
   readingMinutes: 'reading_minutes',
+  progressLog: 'progress_log',
 }
 
 // Fields to skip during auto-mapping (handled via overrides or not needed)

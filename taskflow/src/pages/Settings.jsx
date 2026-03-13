@@ -54,6 +54,7 @@ export default function Settings() {
   const [loginStatus, setLoginStatus] = useState('')
   const [loginMsg, setLoginMsg] = useState('')
   const [uploadStatus, setUploadStatus] = useState('')
+  const [testLog, setTestLog] = useState([])
 
   const [tgToken, setTgToken] = useState('')
   const [tgChatId, setTgChatId] = useState('')
@@ -192,6 +193,28 @@ export default function Settings() {
 
   const handleLogout = async () => {
     await signOut(); setLoginStatus(''); setLoginMsg('')
+  }
+
+  const handleTestConnection = async () => {
+    const log = []
+    const add = (ok, msg) => log.push({ ok, msg })
+    // 1. Check client
+    const ready = isSupabaseReady()
+    add(ready, ready ? '✅ Supabase client khởi tạo OK' : '❌ Supabase chưa cấu hình (thiếu env vars)')
+    if (!ready) { setTestLog([...log]); return }
+    // 2. Check auth
+    add(!!user, user ? `✅ Logged in: ${user.email}` : '❌ Chưa đăng nhập')
+    if (!user) { setTestLog([...log]); return }
+    // 3. Test simple query
+    try {
+      const { supabase } = await import('../services/supabase')
+      const { data, error } = await supabase.from('tasks').select('id').limit(1)
+      if (error) add(false, `❌ Query tasks: ${error.message} (code: ${error.code})`)
+      else add(true, `✅ Query tasks OK — ${data.length} row(s) visible`)
+    } catch (e) {
+      add(false, `❌ Exception: ${e.message}`)
+    }
+    setTestLog([...log])
   }
 
   const handleUploadToCloud = async () => {
@@ -669,6 +692,25 @@ export default function Settings() {
                       {uploadStatus === 'error' && '❌ Lỗi, thử lại'}
                       {!uploadStatus && <><Cloud size={13} /> Upload lên Supabase</>}
                     </button>
+                  </div>
+                  {/* Debug panel */}
+                  <div className="bg-surface border border-edge rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-secondary">Kiểm tra kết nối</p>
+                      <button onClick={handleTestConnection}
+                        className="h-7 px-2.5 bg-input hover:bg-hover text-fg rounded-lg text-[11px] font-medium transition-colors">
+                        Test
+                      </button>
+                    </div>
+                    {testLog.length > 0 && (
+                      <div className="space-y-1">
+                        {testLog.map((entry, i) => (
+                          <p key={i} className={`text-[11px] font-mono ${entry.ok ? 'text-green-400' : 'text-red-400'}`}>
+                            {entry.msg}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : null}
