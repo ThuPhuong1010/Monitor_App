@@ -8,6 +8,8 @@ export const supabase = supabaseUrl && supabaseAnonKey
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null
 
+console.log('[Supabase]', supabase ? `✅ Ready — ${supabaseUrl}` : '❌ Not configured (missing env vars)')
+
 export const isSupabaseReady = () => !!supabase
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
