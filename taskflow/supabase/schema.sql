@@ -82,6 +82,17 @@ create table if not exists resources (
 alter table resources enable row level security;
 create policy "own resources" on resources for all using (auth.uid() = user_id);
 
+-- ─── WEEKLY REVIEWS ───────────────────────────────────────────────────────────
+create table if not exists weekly_reviews (
+  id              uuid primary key,
+  user_id         uuid references auth.users(id) on delete cascade not null,
+  week_start      text,
+  ai_summary      text,
+  created_at      timestamptz default now()
+);
+alter table weekly_reviews enable row level security;
+create policy "own weekly_reviews" on weekly_reviews for all using (auth.uid() = user_id);
+
 -- ─── USER PREFERENCES ─────────────────────────────────────────────────────────
 create table if not exists user_preferences (
   user_id         uuid references auth.users(id) on delete cascade primary key,
@@ -90,6 +101,7 @@ create table if not exists user_preferences (
   notify_done     boolean default true,
   notify_overdue  boolean default true,
   auto_reminder   boolean default true,
+  data            jsonb,           -- widget layout + priority rules
   updated_at      timestamptz default now()
 );
 alter table user_preferences enable row level security;
