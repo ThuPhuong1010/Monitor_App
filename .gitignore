@@ -2,3 +2,5 @@
 /PLANNING.md
 /SUPABASE_PLAN.md
 /TaskFlow_PRD.docx
+.vercel
+.env*.local
